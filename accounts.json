@@ -1,0 +1,14 @@
+[
+  {
+    "name": "Account 1",
+    "token": "YOUR_DISCORD_TOKEN_1"
+  },
+  {
+    "name": "Account 2",
+    "token": "YOUR_DISCORD_TOKEN_2"
+  },
+  {
+    "name": "Account 3",
+    "token": "YOUR_DISCORD_TOKEN_3"
+  }
+]
