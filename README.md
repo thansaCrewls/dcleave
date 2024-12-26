@@ -69,4 +69,5 @@ TOKEN=your_discord_token_here
 ```
 
 Note: - make file 'serverid.txt' if you want leave by id server
+      
       - make file 'invitelink.txt' if you want leave by invite link
