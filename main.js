@@ -51,49 +51,95 @@ function loadAccounts() {
 // Start the program
 (async function () {
   const accounts = loadAccounts();
-  console.log("Available Accounts:");
-  accounts.forEach((account, index) => {
-    console.log(`${index + 1}. ${account.name || `Account ${index + 1}`}`);
-  });
 
-  const choice = await question("\nSelect an account by number: ");
-  const selectedIndex = parseInt(choice, 10) - 1;
+  console.log("Options:");
+  console.log("1. List and select servers to leave");
+  console.log("2. Leave server by ID from file");
+  console.log("3. Leave all servers");
+  console.log("4. Leave server by invite link");
+  console.log("5. Leave servers by invite links from file");
 
-  if (isNaN(selectedIndex) || selectedIndex < 0 || selectedIndex >= accounts.length) {
-    console.log("❌ Invalid selection. Exiting...");
+  const processChoice = await question("\nSelect a process to perform (1/2/3/4/5): ");
+
+  if (!["1", "2", "3", "4", "5"].includes(processChoice)) {
+    console.log("❌ Invalid process choice. Exiting...");
     rl.close();
     process.exit();
   }
 
-  const selectedAccount = accounts[selectedIndex];
-  console.log(`\nSelected Account: ${selectedAccount.name || `Account ${selectedIndex + 1}`}`);
-  startClient(selectedAccount.token);
+  console.log("\nOptions:");
+  console.log("1. Single account");
+  console.log("2. All accounts");
+
+  const accountChoice = await question("\nSelect an option for accounts (1/2): ");
+
+  if (accountChoice === "1") {
+    console.log("Available Accounts:");
+    accounts.forEach((account, index) => {
+      console.log(`${index + 1}. ${account.name || `Account ${index + 1}`}`);
+    });
+
+    const selectedAccountIndex = await question("\nSelect an account by number: ");
+    const selectedIndex = parseInt(selectedAccountIndex, 10) - 1;
+
+    if (isNaN(selectedIndex) || selectedIndex < 0 || selectedIndex >= accounts.length) {
+      console.log("❌ Invalid selection. Exiting...");
+      rl.close();
+      process.exit();
+    }
+
+    const selectedAccount = accounts[selectedIndex];
+    console.log(`\nSelected Account: ${selectedAccount.name || `Account ${selectedIndex + 1}`}`);
+    await processAccount(selectedAccount.token, processChoice);
+  } else if (accountChoice === "2") {
+    console.log("\nProcessing all accounts...");
+    for (const account of accounts) {
+      console.log(`\nProcessing Account: ${account.name || `Account`}`);
+      await processAccount(account.token, processChoice);
+    }
+    console.log("\nFinished processing all accounts.");
+    rl.close();
+    process.exit();
+  } else {
+    console.log("❌ Invalid account choice. Exiting...");
+    rl.close();
+    process.exit();
+  }
 })();
 
-// Function to start Discord client for the selected account
-function startClient(token) {
+// Function to process a single account
+async function processAccount(token, processChoice) {
   const client = new Client({
     checkUpdate: false,
   });
 
-  client.on("ready", async () => {
-    console.log(`\nLogged in as ${client.user.tag}!`);
-    console.log("Select an option:\n1. List and select servers to leave\n2. Leave server by ID from file");
+  return new Promise((resolve) => {
+    client.on("ready", async () => {
+      console.log(`\nLogged in as ${client.user.tag}!`);
 
-    const option = await question("\nEnter your choice (1/2): ");
+      if (processChoice === "1") {
+        await handleServerSelection(client);
+      } else if (processChoice === "2") {
+        await handleLeaveByIDFromFile(client);
+      } else if (processChoice === "3") {
+        await handleLeaveAllServers(client);
+      } else if (processChoice === "4") {
+        await handleLeaveByInviteLink(client);
+      } else if (processChoice === "5") {
+        await handleLeaveByInviteLinkFromFile(client);
+      } else {
+        console.log("Invalid choice. Skipping...");
+      }
 
-    if (option === "1") {
-      await handleServerSelection(client);
-    } else if (option === "2") {
-      await handleLeaveByIDFromFile(client);
-    } else {
-      console.log("Invalid choice. Exiting...");
-      rl.close();
-      process.exit();
-    }
+      client.destroy();
+      resolve();
+    });
+
+    client.login(token).catch((error) => {
+      console.error(`❌ Failed to login with token: ${error.message}`);
+      resolve();
+    });
   });
-
-  client.login(token);
 }
 
 // Function to handle server selection
@@ -137,8 +183,6 @@ async function handleServerSelection(client) {
   }
 
   console.log("\nFinished.");
-  rl.close();
-  process.exit();
 }
 
 // Function to leave servers by ID from file
@@ -147,8 +191,7 @@ async function handleLeaveByIDFromFile(client) {
 
   if (!fs.existsSync(filePath)) {
     console.log(`❌ File "${filePath}" not found. Please create it and add server IDs.`);
-    rl.close();
-    process.exit();
+    return;
   }
 
   const fileContent = fs.readFileSync(filePath, "utf-8");
@@ -156,8 +199,7 @@ async function handleLeaveByIDFromFile(client) {
 
   if (idsToLeave.length === 0) {
     console.log(`❌ No valid server IDs found in "${filePath}".`);
-    rl.close();
-    process.exit();
+    return;
   }
 
   console.log("\nStarting server leave process...");
@@ -182,6 +224,101 @@ async function handleLeaveByIDFromFile(client) {
   }
 
   console.log("\nFinished.");
+}
+
+// Function to leave a server using an invite link
+async function handleLeaveByInviteLink(client) {
+  const inviteLink = await question("\nEnter the invite link: ");
+  const inviteCode = inviteLink.split("/").pop();
+
+  try {
+    const invite = await client.fetchInvite(inviteCode);
+    const guildId = invite.guild.id;
+
+    const guild = client.guilds.cache.get(guildId);
+    if (!guild) {
+      console.log(`❌ You are not a member of the server: ${invite.guild.name}`);
+    } else {
+      await guild.leave();
+      console.log(`✅ Successfully left server: ${invite.guild.name}`);
+    }
+  } catch (error) {
+    console.error(`❌ Failed to process invite link: ${error.message}`);
+  }
+}
+
+// Function to leave servers using invite links from a file
+async function handleLeaveByInviteLinkFromFile(client) {
+  const filePath = "invitelink.txt";
+
+  if (!fs.existsSync(filePath)) {
+    console.log(`❌ File "${filePath}" not found. Please create it and add invite links.`);
+    return;
+  }
+
+  const fileContent = fs.readFileSync(filePath, "utf-8");
+  const inviteLinks = fileContent.split("\n").map((link) => link.trim()).filter(Boolean);
+
+  if (inviteLinks.length === 0) {
+    console.log(`❌ No valid invite links found in "${filePath}".`);
+    return;
+  }
+
+  console.log("\nStarting to leave servers using invite links...");
+  for (let i = 0; i < inviteLinks.length; i++) {
+    const inviteLink = inviteLinks[i];
+    const inviteCode = inviteLink.split("/").pop();
+
+    try {
+      const invite = await client.fetchInvite(inviteCode);
+      const guildId = invite.guild.id;
+
+      const guild = client.guilds.cache.get(guildId);
+      if (!guild) {
+        console.log(`❌ You are not a member of the server: ${invite.guild.name}`);
+      } else {
+        await guild.leave();
+        console.log(`✅ Successfully left server: ${invite.guild.name}`);
+      }
+    } catch (error) {
+      console.error(`❌ Failed to process invite link (${inviteLink}): ${error.message}`);
+    }
+
+    if (i < inviteLinks.length - 1) {
+      await delay(LEAVE_DELAY);
+    }
+  }
+
+  console.log("\nFinished processing invite links.");
+}
+
+// Function to leave all servers
+async function handleLeaveAllServers(client) {
+  const servers = Array.from(client.guilds.cache.values());
+
+  if (servers.length === 0) {
+    console.log("\nYou are not a member of any servers.");
+    rl.close();
+    process.exit();
+  }
+
+  console.log("\nStarting to leave all servers...");
+  for (let i = 0; i < servers.length; i++) {
+    const guild = servers[i];
+
+    try {
+      await guild.leave();
+      console.log(`✅ Successfully left server: ${guild.name}`);
+    } catch (error) {
+      console.error(`❌ Failed to leave server: ${guild.name} (ID: ${guild.id}):`, error);
+    }
+
+    if (i < servers.length - 1) {
+      await delay(LEAVE_DELAY);
+    }
+  }
+
+  console.log("\nFinished leaving all servers.");
   rl.close();
   process.exit();
 }
