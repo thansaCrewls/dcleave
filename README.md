@@ -68,4 +68,5 @@ console.log(`%cYou now have your token in the clipboard!`, "font-size: 16px");
 TOKEN=your_discord_token_here
 ```
 
-Note: make file 'serverid.txt' if you want leave by id server
+Note: - make file 'serverid.txt' if you want leave by id server
+      - make file 'invitelink.txt' if you want leave by invite link
