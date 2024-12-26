@@ -22,8 +22,8 @@ An interactive CLI tool to help you leave multiple Discord servers easily. This 
 1. Clone this repository
 
 ```bash
-git clone https://github.com/thansaCrewls/dcleave.git
-cd dcleave
+git clone https://github.com/thansaCrewls/deceleave.git
+cd deceleave
 ```
 
 2. Install dependencies
